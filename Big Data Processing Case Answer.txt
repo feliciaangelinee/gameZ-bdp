@@ -1,0 +1,323 @@
+QUIZ BIG DATA PROCESSING
+FELICIA ANGELINE/2201756512
+
+-----------------------
+GAMEZ ZTORE
+-----------------------
+
+1. Load data from MySQL to HIVE
+Current state: (misalkan) database tersimpan di drive D computer(D:\) 
+[drag data dari D:\ masuk ke cloudera]
+
+Setelah file database masuk di Cloudera:
+[klik kanan di desktop cloudera untuk membuka terminal desktop, nanti muncul = 
+(base) [cloudera@quickstart Desktop]$]
+
+[lalu copy data menggunakan -copyFromLocal di terminal desktop]
+hadoop fs -copyFromLocal GameZ.sql
+
+Lalu proses data dari MySQL masuk ke Hive:
+[masih di terminal desktop (base) [cloudera@quickstart Desktop]$]
+mysql -u root -p
+Enter Password: cloudera
+	mysql> create database GameZ;
+	mysql> use GameZ;
+	mysql> source GameZ.sql;
+	mysql> exit;
+sudo sqoop import-all-tables --connect jdbc:mysql://quickstart:3306/GameZ --username=root --password=cloudera --hive-import
+
+2. Query Analysis
+--a. Show games which quantity have been sold greater than 25
+SELECT 
+	A.GameId,
+	A.Name,
+	A.total
+FROM 
+	(SELECT
+		Games.GameId,
+		Games.Name,
+		SUM(TransactionDetail.Quantity) AS total
+	FROM
+		TransactionDetail JOIN GAMES ON 
+		TransactionDetail.GameID=Games.GameId
+	GROUP BY
+		Games.GameId,
+		Games.Name
+	) AS A
+WHERE
+	A.total>25
+;
+
+--b. Show top 10 games which is developed by Konami and is sold the most between 2017 and 2019
+SELECT
+	A.GameId,
+	A.Name,
+	A.total
+FROM
+	(SELECT
+		Games.GameId,
+		Games.Name,
+		Developer.DeveloperName,
+		TransactionHeader.TransactionDate,
+		SUM(TransactionDetail.Quantity) AS total
+	FROM
+		TransactionHeader JOIN TransactionDetail ON
+		TransactionHeader.TransactionId=TransactionDetail.TransactionId
+		JOIN Games ON
+		TransactionDetail.GameID=Games.GameId
+		JOIN Developer ON
+		Games.DeveloperId=Developer.DeveloperID
+	GROUP BY
+		Games.GameId,
+		Games.Name,
+		Developer.DeveloperName,
+		TransactionHeader.TransactionDate
+	) AS A
+WHERE
+	A.DeveloperName='Konami' AND
+	YEAR(A.TransactionDate) BETWEEN 2017 AND 2019
+ORDER BY A.total DESC
+LIMIT 10;
+
+--c. Show top 5 publisher that published more than 100 games and the game price is below 5000000
+SELECT
+	A.PublisherId,
+	A.PublisherName
+FROM
+	Games JOIN
+	(SELECT
+		Games.PublisherID,
+		Publisher.PublisherName,
+		COUNT(Games.PublisherID) AS total
+	FROM
+		Games JOIN Publisher ON
+		Games.PublisherId=Publisher.PublisherID
+	GROUP BY
+		Games.PublisherID,
+		Publisher.PublisherName
+	) AS A ON
+	Games.PublisherId=A.PublisherId
+WHERE
+	A.total>100 AND
+	Price<500000
+GROUP BY
+	A.PublisherId, A.PublisherName
+ORDER BY A.total DESC
+LIMIT 5;
+
+--d. Show games which occurred in multiple transaction and sold greater than 10 times where the rating is 'T'
+SELECT
+	A.GameId,
+	A.Name
+FROM
+	(SELECT
+		Games.GameId,
+		Games.Name,
+		Games.Rating,
+		SUM(TransactionDetail.Quantity) AS totalQ,
+		COUNT(TransactionDetail.TransactionId) AS totalT
+	FROM
+		Games JOIN TransactionDetail ON
+		Games.GameId=TransactionDetail.GameID
+	GROUP BY
+		Games.GameId,
+		Games.Name,
+		Games.Rating
+	) AS A
+WHERE 
+	A.totalQ>10 AND
+	A.totalT>2 AND
+	A.Rating='T'
+;
+
+--e. Show games and location where it is mostly sold (either NA, EU, and JP) for every game where the rating is 'E10+' and have been sold greater than 6
+SELECT
+	A.GameId,
+	A.Name,
+	A.Sales,
+	A.Rating
+FROM
+	(SELECT
+		Games.GameId,
+		Games.Name,
+		B.Sales,
+		Games.Rating,
+		SUM(TransactionDetail.Quantity) AS total
+	FROM
+		Games JOIN TransactionDetail ON
+		Games.GameId=TransactionDetail.GameID
+		JOIN
+		(SELECT
+			Games.GameId,
+			CASE
+				WHEN Games.EU_Sales>Games.JP_Sales AND Games.EU_Sales>Games.NA_Sales THEN 'Mostly sold in EU' 
+				WHEN Games.JP_Sales>Games.EU_Sales AND Games.JP_Sales>Games.NA_Sales THEN 'Mostly sold in JP'
+				WHEN Games.NA_Sales>Games.JP_Sales AND Games.NA_Sales>Games.EU_Sales THEN 'Mostly sold in NA'
+			END AS Sales
+		FROM
+			Games
+		) AS B ON
+		TransactionDetail.GameID=B.GameId
+	GROUP BY
+		Games.GameId,
+		Games.Name,
+		B.Sales,
+		Games.Rating
+	) AS A
+WHERE 
+	A.Rating='E10+' AND
+	A.total>6
+;
+
+
+
+
+
+-----------------------
+BLUEBG STORE
+-----------------------
+
+1.Load data from MySQL to HIVE
+Current state: (misalkan) database tersimpan di drive D computer(D:\)
+[drag data dari D:\ masuk ke cloudera]
+
+Setelah file database masuk di Cloudera:
+[klik kanan di desktop cloudera untuk membuka terminal desktop, nanti muncul = 
+(base) [cloudera@quickstart Desktop]$]
+
+[lalu copy data menggunakan -copyFromLocal di terminal desktop]
+hadoop fs -copyFromLocal bluebgstore.sql
+
+Lalu proses data dari MySQL masuk ke Hive:
+[masih di terminal desktop (base) [cloudera@quickstart Desktop]$]
+mysql -u root -p
+Enter Password: cloudera
+	mysql> create database bluebgstore;
+	mysql> use bluebgstore;
+	mysql> source bluebgstore.sql;
+	mysql> exit;
+sudo sqoop import-all-tables --connect jdbc:mysql://quickstart:3306/bluebgstore --username=root --password=cloudera --hive-import
+
+2.Query Analysis
+--a. Show top 10 total boardgame copies sold that is released in 2017
+SELECT
+	msboardgame.BGName,
+	SUM(trtransactiondetail.Qty) AS total
+FROM
+	msboardgame JOIN trtransactiondetail ON
+	msboardgame.BGID=trtransactiondetail.BGID
+WHERE
+	msboardgame.BGYear=2017
+GROUP BY
+	msboardgame.BGName
+ORDER BY total DESC
+LIMIT 10;
+
+--b. Show the average price per category where the total of boardgame in the category is more than 50
+SELECT
+	A.BGCategoryName,
+	AVG(msboardgame.BGPrice) AS AvgPrice
+FROM
+	 MsBGCategory JOIN 
+	(SELECT
+		BGCategoryName,
+		COUNT(BGCategoryName) AS total
+	FROM
+		MsBGCategory
+	GROUP BY
+		BGCategoryName
+	) AS A ON
+	MsBGCategory.BGCategoryName=A.BGCategoryName
+	JOIN msboardgame ON
+	MsBGCategory.BGID=msboardgame.BGID
+WHERE
+	A.total>50
+GROUP BY	
+	A.BGCategoryName
+;
+
+--c. Show 5 most bought category in January
+SELECT
+	A.BGCategoryName 
+FROM
+	(SELECT
+		BGCategoryName,
+		SUM(B.totalQ) AS totalAkhir
+	FROM
+		MsBGCategory JOIN
+		(SELECT
+			trtransactionheader.TransactionID,
+			trtransactionheader.Date,
+			trtransactiondetail.BGID,
+			SUM(trtransactiondetail.Qty) AS totalQ
+		FROM
+			trtransactionheader JOIN trtransactiondetail ON
+			trtransactionheader.TransactionID=trtransactiondetail.TransactionID
+		WHERE
+			MONTH(trtransactionheader.Date)=1
+		GROUP BY
+			trtransactionheader.TransactionID,
+			trtransactionheader.Date,
+			trtransactiondetail.BGID
+		) AS B ON
+		MsBGCategory.BGID=B.BGID
+	GROUP BY
+		BGCategoryName
+	) AS A
+ORDER BY
+	A.totalAkhir DESC
+LIMIT 5;
+
+--d. Show all staff who has handled transaction more than the average
+SELECT
+	A.StaffId,
+	A.StaffName,
+	A.totalC
+FROM
+	(SELECT
+		MsStaff.StaffId,
+		MsStaff.StaffName,
+		COUNT(trtransactionheader.TransactionID) AS totalC
+	FROM
+		MsStaff JOIN trtransactionheader ON
+		MsStaff.StaffId=trtransactionheader.StaffID 
+	GROUP BY
+		MsStaff.StaffId,
+		MsStaff.StaffName
+	) AS A,
+	(SELECT
+		AVG(B.totalC) AS totalAvg
+	FROM
+		(SELECT
+			MsStaff.StaffId,
+			MsStaff.StaffName,
+			COUNT(trtransactionheader.TransactionID) AS totalC
+		FROM
+			MsStaff JOIN trtransactionheader ON
+			MsStaff.StaffId=trtransactionheader.StaffID 
+		GROUP BY
+			MsStaff.StaffId,
+			MsStaff.StaffName
+		) AS B
+	) AS C
+WHERE
+	A.totalC > C.totalAvg
+;
+
+--e. Show boardgames recommendation message. All boardgame with minimum player of 2 or more and maximum player of 4 or more will get a recommendation message with terms and condition as below
+SELECT
+	BGID,
+	BGName,
+	CASE
+        WHEN BGMax_players>=5 AND BGAvg_time<=120 THEN 'Recommended for Beginners'
+		WHEN BGMax_players>=5 AND BGAvg_time>120 THEN 'Recommended for Parties'
+		WHEN BGMax_players<5 AND BGAvg_time>120 THEN 'Not Recommended for Beginners'
+    END AS [Recommendation Message]
+FROM
+	msboardgame
+WHERE
+	BGMin_players<=2 AND BGMax_players>=4
+;
+
+
+
